@@ -29,6 +29,7 @@ import skadistats.clarity.wire.s2.proto.S2UserMessages.CUserMessageSayText2;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.ArrayList;
     
 public class Main {
     private final Logger log = LoggerFactory.getLogger(Main.class.getPackage().getClass());
@@ -83,7 +84,7 @@ public class Main {
         private Boolean has_bots;
     }
 
-    HashMap<String, hero_position> all_hero_positions = new HashMap<String, hero_position>();
+    HashMap<String, List<hero_position>> all_hero_positions = new HashMap<>();
 
     private class Entry {
         public Integer time;
@@ -436,9 +437,12 @@ public class Main {
                             position_data.setHero_y(entry.y);
                             position_data.setTime(time);
                             position_data.setHas_bots(false);
-                            all_hero_positions.put(unit, position_data);
-                            System.out.println("OOOOoh");
-                            System.out.println(all_hero_positions);
+                            List<hero_position> heroPositionList = all_hero_positions.get(unit);
+                            if (heroPositionList == null) {
+                                heroPositionList = new ArrayList<>();
+                                all_hero_positions.put(unit, heroPositionList);
+                            }
+                            heroPositionList.add(position_data);
                         }
                     }
                     output(entry);
@@ -465,6 +469,9 @@ public class Main {
         new SimpleRunner(new MappedFileSource(args[0])).runWith(this);
         long tMatch = System.currentTimeMillis() - tStart;
         System.err.format("total time taken: %s\n", (tMatch) / 1000.0);
+        Gson gson = new Gson();
+        String final_hero_positions = gson.toJson(all_hero_positions);
+        System.out.println(final_hero_positions);
     }
 
     public static void main(String[] args) throws Exception {
