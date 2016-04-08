@@ -29,6 +29,7 @@ import skadistats.clarity.wire.common.proto.DotaUserMessages.DOTA_COMBATLOG_TYPE
 import skadistats.clarity.wire.s2.proto.S2UserMessages.CUserMessageSayText2;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -50,13 +51,17 @@ public class Main {
     HashMap<String, Integer> name_to_slot = new HashMap<String, Integer>();
     HashMap<Integer, Integer> slot_to_playerslot = new HashMap<Integer, Integer>();
 
+    List<hero_position_dict> all_hero_positions = new ArrayList<>();
+    List<hero_position_dict> radiant_all_hero_positions = new ArrayList<>();
+    List<hero_position_dict> dire_all_hero_positions = new ArrayList<>();
+
     private class hero_position{
-        public hero_position(Integer hero_x, Integer hero_y, Integer time, Boolean is_alive, Boolean has_bots) {
+        public hero_position(Integer hero_x, Integer hero_y, Integer time, Integer life_state, Boolean has_bots) {
             this.time = time;
             this.hero_x = hero_x;
             this.hero_y = hero_y;
             this.has_bots = has_bots;
-            this.is_alive = is_alive;
+            this.life_state = life_state;
         }
 
         public Integer getTime() {
@@ -91,19 +96,19 @@ public class Main {
             this.has_bots = has_bots;
         }
 
-        public Boolean getIs_alive() {
-            return is_alive;
+        public int getLife_state() {
+            return life_state;
         }
 
-        public void setIs_alive(Boolean is_alive) {
-            this.is_alive = is_alive;
+        public void setLife_state(int life_state) {
+            this.life_state = life_state;
         }
 
         private Integer time;
         private Integer hero_x;
         private Integer hero_y;
         private Boolean has_bots;
-        private Boolean is_alive;
+        private int life_state;
     }
 
     private class hero_position_dict{
@@ -167,7 +172,27 @@ public class Main {
 
     }
 
-    List<hero_position_dict> all_hero_positions = new ArrayList<>();
+    public class hero_ulti_cooldown{
+        public int get_itime() {
+            return itime;
+        }
+
+        public void set_itime(int itime) {
+            this.itime = itime;
+        }
+
+        public boolean get_ulti_is_cooldown() {
+            return ulti_is_cooldown;
+        }
+
+        public void set_ulti_is_cooldown(boolean ulti_is_cooldown) {
+            this.ulti_is_cooldown = ulti_is_cooldown;
+        }
+
+        private String hero_name;
+        private int itime;
+        private boolean ulti_is_cooldown;
+    }
 
     private class Entry {
         public Integer time;
@@ -237,7 +262,7 @@ public class Main {
         //need to get the entity by index
         entry.key = String.valueOf(message.getOrderType());
         //theres also target_index
-        output(entry);
+        //output(entry);
     }
     */
 
@@ -254,7 +279,7 @@ public class Main {
         //break actions into types?
         entry.key = String.valueOf(message.getOrderType());
         //System.err.println(message);
-        output(entry);
+        //output(entry);
     }
 
 
@@ -276,7 +301,7 @@ public class Main {
         */
         //we could get the ping coordinates/type if we cared
         //entry.key = String.valueOf(message.getOrderType());
-        output(entry);
+        //output(entry);
     }
 
     @OnMessage(CDOTAUserMsg_ChatEvent.class)
@@ -290,7 +315,7 @@ public class Main {
         entry.player1 = player1;
         entry.player2 = player2;
         entry.value = value;
-        output(entry);
+        //output(entry);
     }
 
     /*
@@ -300,7 +325,7 @@ public class Main {
         entry.unit =  String.valueOf(message.getPrefix());
         entry.key =  String.valueOf(message.getText());
         entry.type = "chat";
-        output(entry);
+        //output(entry);
     }
     */
 
@@ -312,7 +337,7 @@ public class Main {
         Entity e = ctx.getProcessor(Entities.class).getByIndex(message.getEntityindex());
         entry.slot = getEntityProperty(e, "m_iPlayerID", null);
         entry.type = "chat";
-        output(entry);
+        //output(entry);
     }
 
     @OnMessage(CDemoFileInfo.class)
@@ -322,13 +347,13 @@ public class Main {
         //Entry matchIdEntry = new Entry();
         //matchIdEntry.type = "match_id";
         //matchIdEntry.value = message.getGameInfo().getDota().getMatchId();
-        //output(matchIdEntry);
+        ////output(matchIdEntry);
 
         //emit epilogue event to mark finish
         Entry epilogueEntry = new Entry();
         epilogueEntry.type = "epilogue";
         epilogueEntry.key = new Gson().toJson(message);
-        output(epilogueEntry);
+        //output(epilogueEntry);
     }
 
     @OnCombatLogEntry
@@ -350,11 +375,17 @@ public class Main {
         combatLogEntry.attackerillusion = cle.isAttackerIllusion();
         combatLogEntry.targetillusion = cle.isTargetIllusion();
         combatLogEntry.value = cle.getValue();
+
         //value may be out of bounds in string table, we can only get valuename if a purchase (type 11)
         if (cle.getType() == DOTA_COMBATLOG_TYPES.DOTA_COMBATLOG_PURCHASE) {
             combatLogEntry.valuename = cle.getValueName();
         }
         output(combatLogEntry);
+        try {
+            save_json_to_file(g.toJson(combatLogEntry), "combat_log");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
         if (cle.getType().ordinal() > 19) {
             System.err.println(cle);
@@ -383,7 +414,7 @@ public class Main {
             entry.slot = ownerEntity != null ? (Integer) getEntityProperty(ownerEntity, "m_iPlayerID", null) : null;
             //2/3 radiant/dire
             //entry.team = e.getProperty("m_iTeamNum");
-            output(entry);
+            //output(entry);
         }
     }
 
@@ -437,7 +468,7 @@ public class Main {
                             entry.key = String.valueOf(added);
                             entry.value = (playerTeam == 2 ? 0 : 128) + teamSlot;
                             entry.steam_id = steamid;
-                            output(entry);
+                            //output(entry);
                             //add it to validIndices, add 1 to added
                             validIndices[added] = i;
                             added += 1;
@@ -521,23 +552,21 @@ public class Main {
                             //populate for combat log mapping
                             name_to_slot.put(combatLogName, entry.slot);
                             name_to_slot.put(combatLogName2, entry.slot);
-                            hero_position position_data = new hero_position(entry.x, entry.y, time, true, false);
+                            hero_position position_data = new hero_position(entry.x, entry.y, time,
+                                    entry.life_state, false);
 
-                            boolean updated = false;
-                            for (hero_position_dict hero_pos : all_hero_positions) {
-                                if (hero_pos.getHero_string() == unit){
-                                    hero_pos.update_hero_positions(position_data);
-                                    updated = true;
-                                    break;
-                                }
+                            update_all_hero_positions_variants(all_hero_positions, unit, position_data, steamid);
+                            if (playerTeam == 2){
+                                update_all_hero_positions_variants(radiant_all_hero_positions, unit, position_data, steamid);
                             }
-                            if (!updated){
-                                all_hero_positions.add(new hero_position_dict(unit, steamid,
-                                        new ArrayList<>(Arrays.asList(position_data))));
+                            else{
+                                update_all_hero_positions_variants(dire_all_hero_positions, unit, position_data, steamid);
                             }
+
+
                         }
                     }
-                    output(entry);
+                    //output(entry);
 
                 }
                 nextInterval += INTERVAL;
@@ -556,6 +585,22 @@ public class Main {
         return e.getPropertyForFieldPath(fp);
     }
 
+    public void update_all_hero_positions_variants(List<hero_position_dict> hero_positions_list_variant,
+                                                   String unit, hero_position position_data, Long steamid) {
+        boolean updated = false;
+        for (hero_position_dict hero_pos : hero_positions_list_variant) {
+            if (hero_pos.getHero_string() == unit) {
+                hero_pos.update_hero_positions(position_data);
+                updated = true;
+                break;
+            }
+        }
+        if (!updated) {
+            hero_positions_list_variant.add(new hero_position_dict(unit, steamid,
+                    new ArrayList<>(Arrays.asList(position_data))));
+        }
+    };
+
     public Double distance_modulus(Integer x2, Integer x1, Integer y2, Integer y1) {
         return Math.sqrt(Math.pow(x2 - x1, 2) +
                 Math.pow(y2 - y1, 2));
@@ -568,36 +613,92 @@ public class Main {
     public HashMap<Integer, Double> calculate_hey_lets_all_circlejerk_mid_factor
             (List<hero_position_dict> the_hero_positions) throws Exception {
         HashMap<Integer, Double> average_distances_over_time = new HashMap<>();
-        for (int i = gameStartTime; i < gameEndTime; i++){
+        for (int current_time = gameStartTime; current_time < gameEndTime; current_time++){
             Double total_distance = 0.0;
-            Integer hero_position_time_one = null;
-            Integer hero_position_time_two;
+            int hero_position_time_one = 0;
+            int hero_position_time_two;
+            int comparisons = 0;
             for (int k=0; k < 4; k++) {
                 for (int l=1; l < 5; l++) {
                     if (l > k) {
-                        hero_position hero_position_one = the_hero_positions.get(k).getHero_position_by_time(i);
-                        hero_position hero_position_two = the_hero_positions.get(l).getHero_position_by_time(i);
-                        hero_position_time_one = the_hero_positions.get(k).
-                                getHero_position_by_time(i).getTime();
-                        hero_position_time_two = the_hero_positions.get(l).
-                                getHero_position_by_time(i).getTime();
-                        if (hero_position_time_one != hero_position_time_two) {
-                            throw new Exception("times do not sync for circlejerk");
+                        hero_position hero_position_one = the_hero_positions.get(k).getHero_position_by_time(current_time);
+                        hero_position hero_position_two = the_hero_positions.get(l).getHero_position_by_time(current_time);
+                        if (hero_position_one.getLife_state() == 0 && hero_position_two.getLife_state() == 0) {
+                            hero_position_time_one = the_hero_positions.get(k).
+                                    getHero_position_by_time(current_time).getTime();
+                            hero_position_time_two = the_hero_positions.get(l).
+                                    getHero_position_by_time(current_time).getTime();
+                            if (hero_position_time_one != hero_position_time_two) {
+                                throw new Exception("times do not sync for circlejerk");
+                            }
+                            Double distance_between_two_hero = distance_modulus(hero_position_two.getHero_x(), hero_position_one.getHero_x(),
+                                    hero_position_two.getHero_y(), hero_position_one.getHero_y());
+                            total_distance += distance_between_two_hero;
+                            comparisons += 1;
                         }
-                        Double distance_between_two_hero = distance_modulus(hero_position_two.getHero_x(), hero_position_one.getHero_x(),
-                                hero_position_two.getHero_y(), hero_position_one.getHero_y());
-                        total_distance += distance_between_two_hero;
+                        else{
+                            break;
+                        }
                     }
                 }
             }
-            System.out.println(hero_position_time_one);
-            System.out.println(total_distance);
-            average_distances_over_time.put(time, total_distance);
+            if (comparisons > 0){  // If there are no comparisons. all dead, teamwiped.we dont want to save tat right? doesnt make sense
+                average_distances_over_time.put(current_time, total_distance/comparisons);
+            }
         }
         return average_distances_over_time;
     }
 
+    public class hey_lets_all_circlejerk_mid_factor {
+        private HashMap<Integer, Double> average_distances_over_time = new HashMap<>();
+
+        private HashMap<Integer, Double> set_average_distance_over_time(List<hero_position_dict> the_hero_positions) throws Exception{
+            for (int current_time = gameStartTime; current_time < gameEndTime; current_time++){
+                Double total_distance = 0.0;
+                int hero_position_time_one = 0;
+                int hero_position_time_two;
+                int comparisons = 0;
+                for (int k=0; k < 4; k++) {
+                    for (int l=1; l < 5; l++) {
+                        if (l > k) {
+                            hero_position hero_position_one = the_hero_positions.get(k).getHero_position_by_time(current_time);
+                            hero_position hero_position_two = the_hero_positions.get(l).getHero_position_by_time(current_time);
+                            if (hero_position_one.getLife_state() == 0 && hero_position_two.getLife_state() == 0) {
+                                hero_position_time_one = the_hero_positions.get(k).
+                                        getHero_position_by_time(current_time).getTime();
+                                hero_position_time_two = the_hero_positions.get(l).
+                                        getHero_position_by_time(current_time).getTime();
+                                if (hero_position_time_one != hero_position_time_two) {
+                                    throw new Exception("times do not sync for circlejerk");
+                                }
+                                Double distance_between_two_hero = distance_modulus(hero_position_two.getHero_x(), hero_position_one.getHero_x(),
+                                        hero_position_two.getHero_y(), hero_position_one.getHero_y());
+                                total_distance += distance_between_two_hero;
+                                comparisons += 1;
+                            }
+                            else{
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (comparisons > 0){  // If there are no comparisons. all dead, teamwiped.we dont want to save tat right? doesnt make sense
+                    Double put = average_distances_over_time.put(current_time, total_distance / comparisons);
+                }
+            }
+            return average_distances_over_time;
+        }
+    }
+
+    public void calculate_ulti_efficiency(){
+
+    }
+
     public void calculate_tp_save_factor(){
+
+    }
+
+    public void calculate_davai_factor(){
 
     }
 
@@ -614,8 +715,6 @@ public class Main {
                         Math.pow(new_position.getHero_y() - old_position.getHero_y(), 2));
                 distance_sum += distance_moved;
             }
-            System.out.println(hero_name);
-            System.out.println(distance_sum);
         }
     }
 
@@ -634,19 +733,34 @@ public class Main {
 
         Pattern p = Pattern.compile(".*?(\\d+).*?");
         Matcher m = p.matcher(args[0]);
-        String file_string = "";
+        String match_id = "";
         while (m.find()) {
-            file_string = "/home/jdog/Documents/dota_hero_position_" + m.group(1) + ".json";
+            match_id = m.group(1);
         }
+        String file_string = "/home/jdog/Documents/dota_hero_position_" + match_id + ".json";
         FileUtils.writeStringToFile(new File(file_string), final_hero_positions);
         calculate_activity(all_hero_positions);
-        calculate_activity(all_hero_positions, 0, gameStartTime + 600);
-        calculate_hey_lets_all_circlejerk_mid_factor(all_hero_positions);
-        System.out.println(gameStartTime);
+        calculate_activity(radiant_all_hero_positions, 0, gameStartTime + 600);
+        HashMap<Integer, Double> radiant_circljerkness_over_time = calculate_hey_lets_all_circlejerk_mid_factor
+                (radiant_all_hero_positions);
+        HashMap<Integer, Double> dire_circljerkness_over_time = calculate_hey_lets_all_circlejerk_mid_factor
+                (dire_all_hero_positions);
+        String radiant_circlejerk_save = "/home/jdog/Documents/clarity_data/radiant_circljerkness_over_time/" + match_id
+                + ".json";
+        String dire_circlejerk_save = "/home/jdog/Documents/clarity_data/dire_circljerkness_over_time/" + match_id
+                + ".json";
+        //System.out.println(radiant_circljerkness_over_time);
+        FileUtils.writeStringToFile(new File(radiant_circlejerk_save), gson.toJson(radiant_circljerkness_over_time));
+        FileUtils.writeStringToFile(new File(dire_circlejerk_save), gson.toJson(dire_circljerkness_over_time));
     }
 
     public static void main(String[] args) throws Exception {
         new Main().run(args);
+    }
+
+    public void save_json_to_file(String json_stuff, String name) throws IOException {
+        String file_string = "/home/jdog/Documents/clarity_data/random/" + name+ ".json";
+        FileUtils.writeStringToFile(new File(file_string), json_stuff);
     }
 }
 
