@@ -737,7 +737,7 @@ public class Main {
         while (m.find()) {
             match_id = m.group(1);
         }
-        String file_string = "/home/jdog/Documents/dota_hero_position_" + match_id + ".json";
+        String file_string = "~/Documents/dota_hero_position_" + match_id + ".json";
         FileUtils.writeStringToFile(new File(file_string), final_hero_positions);
         calculate_activity(all_hero_positions);
         calculate_activity(radiant_all_hero_positions, 0, gameStartTime + 600);
